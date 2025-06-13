@@ -23,7 +23,11 @@ import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
-import io.flutter.plugin.common.PluginRegistry.Registrar;
+// import io.flutter.plugin.common.PluginRegistry.Registrar;
+import androidx.annotation.NonNull;
+import io.flutter.embedding.engine.plugins.FlutterPlugin;
+import io.flutter.plugin.common.MethodChannel;
+
 
 import org.tensorflow.lite.DataType;
 import org.tensorflow.lite.Interpreter;
@@ -52,8 +56,8 @@ import java.util.PriorityQueue;
 import java.util.Vector;
 
 
-public class TflitePlugin implements MethodCallHandler {
-  private final Registrar mRegistrar;
+public class TflitePlugin implements FlutterPlugin, MethodCallHandler {
+  // private final Registrar mRegistrar;
   private Interpreter tfLite;
   private boolean tfLiteBusy = false;
   private int inputSize = 0;
@@ -81,14 +85,34 @@ public class TflitePlugin implements MethodCallHandler {
   Map<String, Integer> partsIds = new HashMap<>();
   List<Integer> parentToChildEdges = new ArrayList<>();
   List<Integer> childToParentEdges = new ArrayList<>();
+    private MethodChannel channel;
+    private AssetManager assetManager;
+    private Context context;
+    private FlutterPluginBinding pluginBinding;
 
-  public static void registerWith(Registrar registrar) {
-    final MethodChannel channel = new MethodChannel(registrar.messenger(), "tflite");
-    channel.setMethodCallHandler(new TflitePlugin(registrar));
-  }
+  // public static void registerWith(Registrar registrar) {
+  //   final MethodChannel channel = new MethodChannel(registrar.messenger(), "tflite");
+  //   channel.setMethodCallHandler(new TflitePlugin(registrar));
+  // }
 
-  private TflitePlugin(Registrar registrar) {
-    this.mRegistrar = registrar;
+ @Override
+public void onAttachedToEngine(@NonNull FlutterPluginBinding flutterPluginBinding) {
+    this.pluginBinding = flutterPluginBinding;
+    channel = new MethodChannel(flutterPluginBinding.getBinaryMessenger(), "tflite");
+    channel.setMethodCallHandler(this);
+
+    assetManager = flutterPluginBinding.getApplicationContext().getAssets();  // replace mRegistrar.context()
+    context = flutterPluginBinding.getApplicationContext();
+}
+
+
+  // private TflitePlugin(Registrar registrar) {
+  //   this.mRegistrar = registrar;
+  // }
+
+  @Override
+  public void onDetachedFromEngine(@NonNull FlutterPluginBinding binding) {
+    channel.setMethodCallHandler(null);
   }
 
   @Override
@@ -205,8 +229,9 @@ public class TflitePlugin implements MethodCallHandler {
     String key = null;
     AssetManager assetManager = null;
     if (isAsset) {
-      assetManager = mRegistrar.context().getAssets();
-      key = mRegistrar.lookupKeyForAsset(model);
+      assetManager = pluginBinding.getApplicationContext().getAssets();
+      key = pluginBinding.getFlutterAssets().getAssetFilePathByName(model);
+
       AssetFileDescriptor fileDescriptor = assetManager.openFd(key);
       FileInputStream inputStream = new FileInputStream(fileDescriptor.getFileDescriptor());
       FileChannel fileChannel = inputStream.getChannel();
@@ -238,7 +263,7 @@ public class TflitePlugin implements MethodCallHandler {
 
     if (labels.length() > 0) {
       if (isAsset) {
-        key = mRegistrar.lookupKeyForAsset(labels);
+        key = pluginBinding.getFlutterAssets().getAssetFilePathByName(model);
         loadLabels(assetManager, key);
       } else {
         loadLabels(null, labels);
@@ -411,7 +436,7 @@ public class TflitePlugin implements MethodCallHandler {
 
     Bitmap bitmapRaw = Bitmap.createBitmap(imageWidth, imageHeight, Bitmap.Config.ARGB_8888);
     Allocation bmData = renderScriptNV21ToRGBA888(
-        mRegistrar.context(),
+        context,
         imageWidth,
         imageHeight,
         data);
